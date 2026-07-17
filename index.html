@@ -1,0 +1,1112 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>CR機動戰艦撫子號 - 環狀彈珠道 × JACKPOT LOOP 融合版</title>
+    <style>
+        * {
+            margin: 0; padding: 0; box-sizing: border-box;
+            user-select: none; -webkit-user-select: none; touch-action: none;
+        }
+        body {
+            background-color: #020205; color: #fff;
+            font-family: 'monospace', sans-serif;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            overflow: hidden; display: flex; align-items: center; justify-content: center;
+        }
+        #gameContainer {
+            position: relative; width: 100%; height: 70vh; max-width: 500px;
+            background: #15051a; border: 4px solid #220533;
+            display: flex; flex-direction: column; box-shadow: 0 0 30px rgba(150,0,255,0.5);
+        }
+        canvas {
+            background: radial-gradient(circle at center, #140526, #05020c);
+            display: block; width: 100%; height: calc(100% - 210px);
+        }
+
+        /* ---- chrome chase-light frame (from jackpot_loop.html), wraps the cabinet ---- */
+        .lightFrame{
+            position:absolute; inset:6px; bottom:216px;
+            pointer-events:none; z-index:40;
+        }
+        .lightFrame i{
+            position:absolute; width:6px; height:6px; border-radius:50%;
+            background:#3a3d49; transition:background .08s linear, box-shadow .08s linear;
+        }
+        .lightFrame i.on{
+            background:#ffcf4d;
+            box-shadow:0 0 8px 2px #ffcf4d, 0 0 16px 4px rgba(255,207,77,.5);
+        }
+        .lightFrame i.fever{
+            background:#ff3d81;
+            box-shadow:0 0 10px 3px #ff3d81, 0 0 20px 5px rgba(255,61,129,.6);
+        }
+
+        /* ---- background image layer controls (floating on top-left of canvas) ---- */
+        .bgLayerControls{
+            position:absolute; top:8px; left:8px; z-index:45;
+            display:flex; align-items:center; gap:6px;
+        }
+        .bgLayerControls label, .bgLayerControls button{
+            width:30px; height:30px; border-radius:6px;
+            background:rgba(20,5,26,0.75); border:1px solid #72169c;
+            color:#00ffcc; font-size:15px; cursor:pointer;
+            display:flex; align-items:center; justify-content:center;
+            padding:0;
+        }
+        .bgLayerControls button.off{ color:#666; border-color:#444; }
+        .bgLayerControls input[type="file"]{ display:none; }
+        .bgLayerControls .bgStatus{
+            font-size:9px; color:#8b90a0; background:rgba(0,0,0,0.6);
+            padding:2px 6px; border-radius:4px; max-width:120px;
+            white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+        }
+
+        /* 底部控制台 */
+        #control-panel {
+            width: 100%; height: 210px;
+            background: linear-gradient(to bottom, #5a0e7e, #200330);
+            border-top: 5px solid #00ffcc;
+            display: flex; flex-direction: column; justify-content: space-between;
+            padding: 10px 15px env(safe-area-inset-bottom, 8px) 15px;
+            box-shadow: inset 0 5px 15px rgba(255,255,255,0.2);
+            z-index: 50;
+        }
+        .control-row-top {
+            display: flex; justify-content: space-between; width: 100%; align-items: center; gap:8px;
+        }
+        .control-row-mid{
+            display:flex; justify-content:center; gap:5px; flex-wrap:wrap; padding:2px 0;
+            min-height: 20px;
+        }
+        .control-row-mid .chip{
+            font-size:11px; font-weight:700; padding:2px 7px; border-radius:5px;
+            color:#8b90a0; border:1px solid #3a3d49; font-family:monospace;
+        }
+        .control-row-mid .chip.active{
+            color:#0a0a10; background:#ffcf4d; border-color:#ffcf4d;
+        }
+        .control-row-bottom {
+            display: flex; justify-content: space-between; width: 100%; align-items: center; gap: 8px;
+        }
+        .parlor-stats {
+            display: flex; flex-direction: column; gap: 5px;
+        }
+
+        .info-box {
+            font-size: 19px; font-weight: 900; background: #000;
+            padding: 6px 12px; border-radius: 6px; border: 2px solid #00ffcc;
+            min-width: 150px; font-family: monospace; text-align: center;
+            box-shadow: inset 0 0 5px rgba(0,255,200,0.5);
+        }
+        #ballCount { color: #fff; text-shadow: 0 0 4px #00ffcc; }
+        #jackpotCount { color: #fff; text-shadow: 0 0 4px #ff00ff; }
+
+        .btn-refill, .btn-bgm, .btn-bgm2 {
+            background: linear-gradient(135deg, #ffff00, #ff6600);
+            color: #000; border: 3px solid #fff; padding: 9px 12px;
+            font-size: 15px; font-weight: bold; border-radius: 6px; cursor: pointer;
+            box-shadow: 2px 2px 0px #000;
+            text-shadow: 1px 1px 0px rgba(255,255,255,0.5);
+        }
+        .btn-bgm {
+            background: linear-gradient(135deg, #ff00ff, #72169c);
+            color: #fff; border-color: #fff;
+            text-shadow: 1px 1px 2px #000;
+        }
+        .btn-bgm2{
+            background: linear-gradient(135deg, #ffcf4d, #ff3d81);
+            color: #0a0a10; border-color: #fff;
+        }
+        .bgm-group{ display:flex; flex-direction:column; gap:6px; }
+
+        /* 發射把手 */
+        .handle-area {
+            display: flex; flex-direction: column; align-items: center; gap: 3px;
+        }
+        .dial-outer {
+            width: 68px; height: 68px; background: radial-gradient(circle, #555, #222);
+            border: 4px solid #aaa; border-radius: 50%; position: relative;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .dial-knob {
+            width: 60px; height: 60px;
+            background: conic-gradient(from 0deg, #333, #72169c, #333);
+            border-radius: 50%; position: absolute; transform: rotate(0deg);
+        }
+        .dial-indicator {
+            width: 5px; height: 18px; background: #fff;
+            position: absolute; top: 4px; left: 27.5px; border-radius: 3px;
+        }
+        .dial-center {
+            width: 20px; height: 20px; background: #111; border-radius: 50%; z-index: 2;
+            border: 2px solid #555;
+        }
+        .dial-text { font-size: 14px; color: #00ffcc; font-weight: 900; text-shadow: 1px 1px 2px #000; }
+    </style>
+</head>
+<body>
+
+    <div id="gameContainer">
+        <div class="lightFrame" id="lightFrame"></div>
+        <div class="bgLayerControls">
+            <label for="bgFileInput" title="載入背景圖檔">🖼️</label>
+            <input type="file" id="bgFileInput" accept="image/*">
+            <button id="bgToggleBtn" title="顯示/隱藏背景圖">👁️</button>
+            <span class="bgStatus" id="bgStatus">尋找 pa01.jpg...</span>
+        </div>
+        <canvas id="pachinkoCanvas"></canvas>
+
+        <div id="control-panel">
+            <div class="control-row-top">
+                <div class="parlor-stats">
+                    <div id="ballCount" class="info-box">持玉: 300 發</div>
+                    <div id="jackpotCount" class="info-box">大賞: 0 回</div>
+                </div>
+                <div class="bgm-group">
+                    <button id="bgmBtn" class="btn-bgm">♫ MIDI OP</button>
+                    <button id="bgmBtn2" class="btn-bgm2">★ JACKPOT LOOP</button>
+                </div>
+            </div>
+
+            <div class="control-row-mid" id="chordStrip"></div>
+
+            <div class="control-row-bottom">
+                <button id="refillBtn" class="btn-refill">補給鋼珠 (+100)</button>
+                <div class="handle-area">
+                    <div class="dial-outer" id="dialOuter">
+                        <div class="dial-knob" id="dialKnob">
+                            <div class="dial-indicator"></div>
+                        </div>
+                        <div class="dial-center"></div>
+                    </div>
+                    <div class="dial-text" id="powerDisplay">發射 OFF</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('pachinkoCanvas');
+        const ctx = canvas.getContext('2d');
+        const ballDisplay = document.getElementById('ballCount');
+        const jackpotDisplay = document.getElementById('jackpotCount');
+        const refillBtn = document.getElementById('refillBtn');
+        const bgmBtn = document.getElementById('bgmBtn');
+        const bgmBtn2 = document.getElementById('bgmBtn2');
+        const dialOuter = document.getElementById('dialOuter');
+        const dialKnob = document.getElementById('dialKnob');
+        const powerDisplay = document.getElementById('powerDisplay');
+        const chordStripEl = document.getElementById('chordStrip');
+
+        const V_WIDTH = 600;
+        const V_HEIGHT = 800;
+
+        function resizeCanvas() {
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * window.devicePixelRatio;
+            canvas.height = rect.height * window.devicePixelRatio;
+            ctx.scale(canvas.width / V_WIDTH, canvas.height / V_HEIGHT);
+        }
+
+        let myBalls = 300;
+        let jackpots = 0;
+        let shootPower = 0;
+        let shootTimer = 0;
+        let isRotating = false;
+
+        let balls = [];
+        let pins = [];
+
+        // ===================== 背景圖層：預設嘗試讀取 pa01.jpg，也可自行選擇圖檔替換 =====================
+        const bgFileInput = document.getElementById('bgFileInput');
+        const bgToggleBtn = document.getElementById('bgToggleBtn');
+        const bgStatusEl = document.getElementById('bgStatus');
+        let bgImage = null;
+        let bgImageLoaded = false;
+        let bgVisible = true;
+        let bgOpacity = 0.42;
+
+        function tryLoadBgImage(src, label){
+            const img = new Image();
+            img.onload = () => {
+                bgImage = img;
+                bgImageLoaded = true;
+                bgStatusEl.textContent = label || '背景圖已載入';
+            };
+            img.onerror = () => {
+                bgImageLoaded = false;
+                bgStatusEl.textContent = '未找到 pa01.jpg（可自行選圖）';
+            };
+            img.src = src;
+        }
+        tryLoadBgImage('pa01.jpg', 'pa01.jpg 已載入');
+
+        bgFileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const url = URL.createObjectURL(file);
+            tryLoadBgImage(url, file.name + ' 已載入');
+        });
+
+        bgToggleBtn.addEventListener('click', () => {
+            bgVisible = !bgVisible;
+            bgToggleBtn.classList.toggle('off', !bgVisible);
+        });
+
+        function drawBgLayer(){
+            if (!bgVisible || !bgImageLoaded || !bgImage) return;
+            const scale = Math.max(V_WIDTH / bgImage.width, V_HEIGHT / bgImage.height);
+            const dw = bgImage.width * scale;
+            const dh = bgImage.height * scale;
+            const dx = (V_WIDTH - dw) / 2;
+            const dy = (V_HEIGHT - dh) / 2;
+            ctx.save();
+            ctx.globalAlpha = bgOpacity;
+            ctx.drawImage(bgImage, dx, dy, dw, dh);
+            ctx.restore();
+        }
+
+        let slotState = "IDLE";
+        let slotNumbers = [7, 7, 7];
+        let slotTimer = 0;
+        let retainBalls = 0;
+
+        let battleTimer = 0;
+        let playerRoll = 0;
+        let enemyRoll = 0;
+        let playerRevealed = false;
+        let enemyRevealed = false;
+        let battleRollDisplayP = 0;
+        let battleRollDisplayE = 0;
+        let battleResultTimer = 0;
+        let battleWon = false;
+        let dialogueSpeaker = "【系統】";
+        let dialogueText = "環狀彈珠道校正完成，請點擊發射！";
+
+        const chanceGate = { x: 300, y: 560, r: 16 };
+        const feverGate = { x: 300, y: 720, w: 220, h: 26, open: false, wingAngle: 0 };
+
+        // ===== 中央黑框（LCD 主畫面）與環繞彈珠道參數 — 依據參考圖片的圓形機殼設計 =====
+        const RING = { cx: 300, cy: 320, rx: 232, ry: 250 };
+        const SCREEN = { x: 130, y: 165, w: 340, h: 260 };
+
+        // ----------------- Web Audio API 共用 context -----------------
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        // 主壓縮器：所有音效/音樂統一先經過這裡再輸出，避免多顆珠子同時碰撞時疊音爆音
+        const masterCompressor = audioCtx.createDynamicsCompressor();
+        masterCompressor.threshold.value = -26;
+        masterCompressor.knee.value = 24;
+        masterCompressor.ratio.value = 14;
+        masterCompressor.attack.value = 0.003;
+        masterCompressor.release.value = 0.28;
+        masterCompressor.connect(audioCtx.destination);
+
+        const jackpotMaster = audioCtx.createGain();
+        jackpotMaster.gain.value = 1;
+        jackpotMaster.connect(masterCompressor);
+        let noiseBuffer = makeNoiseBuffer();
+
+        function makeNoiseBuffer(){
+            const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 1, audioCtx.sampleRate);
+            const data = buf.getChannelData(0);
+            for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+            return buf;
+        }
+
+        // ===================== 音軌 1：正宗 MIDI OP（原版保留） =====================
+        let bgmPlaying = false;
+        let noteIndex = 0;
+        let musicTimer = null;
+
+        const N_FREQ = {
+            'G#3': 207.65, 'A3': 220.00, 'B3': 246.94, 'C#4': 277.18, 'D4': 293.66, 'E4': 329.63, 'F#4': 369.99, 'G#4': 415.30, 'A4': 440.00, 'B4': 493.88,
+            'C#5': 554.37, 'D5': 587.33, 'E5': 659.25, 'F#5': 739.99, 'G#5': 830.61, 'A5': 880.00, 'B5': 987.77, 'C#6': 1108.73, '0': 0
+        };
+
+        const songData = [
+            ['C#5', 'F#3', 2], ['D5',  'D3',  2], ['C#5', 'C#3', 2], ['B4',  'E3',  2],
+            ['A4',  'F#3', 4], ['B4',  'E3',  2], ['C#5', 'C#3', 2],
+            ['B4',  'E3',  2], ['A4',  'D3',  2], ['G#4', 'C#3', 4], ['0',   '0',   2],
+
+            ['C#5', 'F#3', 2], ['D5',  'D3',  2], ['E5',  'E3',  2], ['F#5', 'F#3', 4],
+            ['C#5', 'C#3', 6],
+            ['0',   '0',   2],
+
+            ['C#5', 'C#3', 2], ['F#5', 'F#3', 2], ['G#5', 'G#3', 2], ['A5',  'A3',  3],
+            ['G#5', 'G#3', 5],
+
+            ['A5',  'D3',  2], ['B5',  'E3',  2], ['A5',  'D3',  2], ['G#5', 'C#3', 2],
+            ['F#5', 'F#3', 6], ['0',   '0',   4]
+        ];
+
+        function playTone2A03(freq, type, duration, vol) {
+            if (freq === 0) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(vol * 0.4, audioCtx.currentTime + duration * 0.8);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(masterCompressor);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+
+        function playNextNote() {
+            if (!bgmPlaying) return;
+            const step = songData[noteIndex];
+            const tickTime = 0.068;
+            const duration = step[2] * tickTime;
+            playTone2A03(N_FREQ[step[0]] || 0, 'square', duration - 0.015, 0.07);
+            playTone2A03((N_FREQ[step[1]] || 0), 'triangle', duration, 0.12);
+            noteIndex = (noteIndex + 1) % songData.length;
+            musicTimer = setTimeout(playNextNote, duration * 1000);
+        }
+
+        function startOP(){
+            if (jackpotPlaying) stopJackpotLoop();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            bgmPlaying = true;
+            noteIndex = 0;
+            playNextNote();
+            bgmBtn.style.background = "linear-gradient(135deg, #00ffcc, #ff00ff)";
+            lightBeatMs = 220;
+        }
+        function stopOP(){
+            bgmPlaying = false;
+            clearTimeout(musicTimer);
+            bgmBtn.style.background = "linear-gradient(135deg, #ff00ff, #72169c)";
+        }
+        bgmBtn.addEventListener('click', () => {
+            if (bgmPlaying) stopOP(); else startOP();
+        });
+
+        function playSfx(freq, duration, wave='square') {
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = wave;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.005, audioCtx.currentTime + duration);
+                osc.connect(gain); gain.connect(masterCompressor);
+                osc.start(); osc.stop(audioCtx.currentTime + duration);
+            } catch(e){}
+        }
+
+        // 碰撞音效節流：短時間內限制觸發次數，避免大量珠子同時碰撞造成疊音爆音
+        let lastPinHitSfxTime = -1;
+        function playPinHitSfx(freq, duration){
+            const now = audioCtx.currentTime;
+            if (now - lastPinHitSfxTime < 0.018) return;
+            lastPinHitSfxTime = now;
+            playSfx(freq, duration);
+        }
+
+        // ===================== 音軌 2：JACKPOT LOOP（取自 pachinko_jackpot_loop.html） =====================
+        const SEMITONE = {C:-9,'C#':-8,D:-7,'D#':-6,E:-5,F:-4,'F#':-3,G:-2,'G#':-1,A:0,'A#':1,B:2};
+        function jfreq(name, octave){
+            const n = SEMITONE[name] + (octave-4)*12;
+            return 440*Math.pow(2, n/12);
+        }
+        const CHORDS = {
+            Am:{tones:['A','C','E']}, G:{tones:['G','B','D']}, F:{tones:['F','A','C']},
+            Em:{tones:['E','G','B']}, D7:{tones:['D','F#','A','C']}, Cm:{tones:['C','D#','G']}, E:{tones:['E','G#','B']}
+        };
+        const PROGRESSION = ['Am','G','F','Em','D7','Cm','G','E'];
+        const J_BPM = 143;
+        const J_BEAT = 60/J_BPM;
+        const J_MEASURE = J_BEAT*4;
+        const MEASURES_PER_CHORD = 2;
+
+        function buildTimeline(){
+            const line = [];
+            for(let rep=0; rep<2; rep++){
+                PROGRESSION.forEach(c=> { for(let m=0;m<MEASURES_PER_CHORD;m++) line.push(c); });
+            }
+            for(let m=0;m<4;m++) line.push('Am');
+            return line;
+        }
+        const TIMELINE = buildTimeline();
+        const TOTAL_MEASURES = TIMELINE.length;
+        const TOTAL_DUR = TOTAL_MEASURES*J_MEASURE;
+
+        const LEAD_PATTERNS = [
+            {idx:[0,1,2,1,2,3,2,1], oct:[0,0,0,1,1,1,1,0]},
+            {idx:[2,1,0,1,2,3,4,3], oct:[1,1,0,0,1,1,1,1]},
+        ];
+
+        function buildEvents(){
+            const events = [];
+            TIMELINE.forEach((chordName, mIdx)=>{
+                const chord = CHORDS[chordName];
+                const n = chord.tones.length;
+                const measureStart = mIdx*J_MEASURE;
+                const pattern = LEAD_PATTERNS[mIdx%2];
+                const eighth = J_BEAT/2;
+
+                for(let i=0;i<8;i++){
+                    const degree = pattern.idx[i]%n;
+                    const octShift = pattern.oct[i];
+                    const noteName = chord.tones[degree];
+                    events.push({
+                        t: measureStart + i*eighth,
+                        freq: jfreq(noteName, 4+octShift+(degree===0?1:0)),
+                        dur: eighth*1.05,
+                        gain: (i%4===0)?0.30:0.20,
+                        type:'lead'
+                    });
+                }
+
+                const root = chord.tones[0];
+                const fifth = chord.tones[Math.min(2,n-1)];
+                for(let i=0;i<8;i++){
+                    const noteName = (i%2===0)?root:fifth;
+                    events.push({ t: measureStart + i*eighth, freq: jfreq(noteName, 2), dur: eighth*1.0, gain: 0.22, type:'bass' });
+                }
+
+                for(let i=0;i<8;i++){
+                    events.push({ t: measureStart + i*eighth, type:'hat', gain: (i%2===0)?0.10:0.06 });
+                }
+                events.push({ t: measureStart, type:'kick', gain:0.35 });
+                events.push({ t: measureStart + J_BEAT*2, type:'kick', gain:0.30 });
+
+                if(mIdx%MEASURES_PER_CHORD===0){
+                    events.push({ t: measureStart, freq: jfreq(root,6), dur: J_MEASURE*0.9, gain:0.12, type:'chime' });
+                }
+            });
+
+            const finaleStart = TOTAL_DUR - J_MEASURE*2;
+            const sparkle = ['A','C','E','A'];
+            sparkle.forEach((n_,i)=>{
+                events.push({ t: finaleStart + i*J_BEAT*0.9, freq: jfreq(n_, 5+Math.floor(i/2)), dur: J_BEAT*1.4, gain:0.24, type:'lead' });
+            });
+            return events;
+        }
+        const J_EVENTS = buildEvents();
+
+        function jPianoVoice(time, f, dur, gain){
+            const osc1 = audioCtx.createOscillator();
+            const osc2 = audioCtx.createOscillator();
+            osc1.type='triangle'; osc2.type='sine'; osc2.detune.value = 4;
+            const g = audioCtx.createGain();
+            osc1.connect(g); osc2.connect(g); g.connect(jackpotMaster);
+            osc1.frequency.value=f; osc2.frequency.value=f;
+            g.gain.setValueAtTime(0, time);
+            g.gain.linearRampToValueAtTime(gain, time+0.012);
+            g.gain.exponentialRampToValueAtTime(0.0008, time+dur);
+            osc1.start(time); osc2.start(time);
+            osc1.stop(time+dur+0.05); osc2.stop(time+dur+0.05);
+        }
+        function jBassVoice(time, f, dur, gain){
+            const osc = audioCtx.createOscillator();
+            osc.type='sawtooth';
+            const filt = audioCtx.createBiquadFilter();
+            filt.type='lowpass'; filt.frequency.value=900;
+            const g = audioCtx.createGain();
+            osc.connect(filt); filt.connect(g); g.connect(jackpotMaster);
+            osc.frequency.value=f;
+            g.gain.setValueAtTime(0,time);
+            g.gain.linearRampToValueAtTime(gain, time+0.008);
+            g.gain.exponentialRampToValueAtTime(0.0008, time+dur);
+            osc.start(time); osc.stop(time+dur+0.05);
+        }
+        function jChimeVoice(time, f, dur, gain){
+            const osc = audioCtx.createOscillator();
+            osc.type='sine';
+            const g = audioCtx.createGain();
+            osc.connect(g); g.connect(jackpotMaster);
+            osc.frequency.value=f;
+            g.gain.setValueAtTime(0,time);
+            g.gain.linearRampToValueAtTime(gain, time+0.02);
+            g.gain.exponentialRampToValueAtTime(0.0005, time+dur);
+            osc.start(time); osc.stop(time+dur+0.05);
+        }
+        function jHatVoice(time, gain){
+            const src = audioCtx.createBufferSource();
+            src.buffer = noiseBuffer;
+            const filt = audioCtx.createBiquadFilter();
+            filt.type='highpass'; filt.frequency.value=6000;
+            const g = audioCtx.createGain();
+            src.connect(filt); filt.connect(g); g.connect(jackpotMaster);
+            g.gain.setValueAtTime(gain, time);
+            g.gain.exponentialRampToValueAtTime(0.0005, time+0.05);
+            src.start(time); src.stop(time+0.06);
+        }
+        function jKickVoice(time, gain){
+            const osc = audioCtx.createOscillator();
+            osc.type='sine';
+            const g = audioCtx.createGain();
+            osc.connect(g); g.connect(jackpotMaster);
+            osc.frequency.setValueAtTime(140, time);
+            osc.frequency.exponentialRampToValueAtTime(45, time+0.12);
+            g.gain.setValueAtTime(gain, time);
+            g.gain.exponentialRampToValueAtTime(0.001, time+0.18);
+            osc.start(time); osc.stop(time+0.2);
+        }
+
+        let jackpotPlaying = false;
+        let jackpotAutoTriggered = false;
+        let jackpotLoopTimer = null;
+        let jackpotBase = 0;
+
+        function renderChordStrip(){
+            chordStripEl.innerHTML='';
+            PROGRESSION.forEach((c)=>{
+                const el = document.createElement('div');
+                el.className='chip';
+                el.textContent=c;
+                chordStripEl.appendChild(el);
+            });
+        }
+        renderChordStrip();
+
+        function scheduleJackpotLoop(){
+            const base = audioCtx.currentTime + 0.1;
+            J_EVENTS.forEach(ev=>{
+                const t = base + ev.t;
+                if(ev.type==='lead') jPianoVoice(t, ev.freq, ev.dur, ev.gain);
+                else if(ev.type==='bass') jBassVoice(t, ev.freq, ev.dur, ev.gain);
+                else if(ev.type==='chime') jChimeVoice(t, ev.freq, ev.dur, ev.gain);
+                else if(ev.type==='hat') jHatVoice(t, ev.gain);
+                else if(ev.type==='kick') jKickVoice(t, ev.gain);
+            });
+            return base;
+        }
+
+        function startJackpotLoop(auto){
+            if (jackpotPlaying) return;
+            if (bgmPlaying) stopOP();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            jackpotMaster.gain.cancelScheduledValues(audioCtx.currentTime);
+            jackpotMaster.gain.setValueAtTime(1, audioCtx.currentTime);
+            jackpotPlaying = true;
+            jackpotAutoTriggered = !!auto;
+            jackpotBase = scheduleJackpotLoop();
+            bgmBtn2.style.background = "linear-gradient(135deg, #2fe6ff, #ffcf4d)";
+            lightBeatMs = J_BEAT*1000/2;
+            jackpotLoopTimer = setTimeout(()=>{
+                jackpotPlaying = false;
+                startJackpotLoop(jackpotAutoTriggered);
+            }, TOTAL_DUR*1000 + 250);
+        }
+        function stopJackpotLoop(){
+            jackpotPlaying = false;
+            jackpotAutoTriggered = false;
+            clearTimeout(jackpotLoopTimer);
+            jackpotMaster.gain.cancelScheduledValues(audioCtx.currentTime);
+            jackpotMaster.gain.setValueAtTime(jackpotMaster.gain.value, audioCtx.currentTime);
+            jackpotMaster.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.15);
+            bgmBtn2.style.background = "linear-gradient(135deg, #ffcf4d, #ff3d81)";
+            [...chordStripEl.children].forEach(el=>el.classList.remove('active'));
+        }
+        bgmBtn2.addEventListener('click', () => {
+            if (jackpotPlaying) stopJackpotLoop(); else startJackpotLoop(false);
+        });
+
+        function updateChordUI(){
+            if (!jackpotPlaying) return;
+            const elapsed = audioCtx.currentTime - jackpotBase;
+            if (elapsed >= 0){
+                const measureIdx = Math.floor((elapsed % TOTAL_DUR) / J_MEASURE);
+                const chordName = TIMELINE[Math.min(TOTAL_MEASURES-1, measureIdx)];
+                const progIdx = PROGRESSION.indexOf(chordName);
+                [...chordStripEl.children].forEach((el,i)=> el.classList.toggle('active', i===progIdx));
+            }
+        }
+
+        // ===================== 環繞黑框外圍的追逐燈光（來自 jackpot_loop 機殼燈條，貼合中央畫面外緣） =====================
+        const lightFrameEl = document.getElementById('lightFrame');
+        const LIGHT_COUNT = 34;
+        let lightEls = [];
+        function buildLightFrame(){
+            lightFrameEl.innerHTML = '';
+            lightEls = [];
+            for (let i = 0; i < LIGHT_COUNT; i++) {
+                const angle = (i / LIGHT_COUNT) * Math.PI * 2 - Math.PI/2;
+                const rxPct = (RING.rx + 26) / V_WIDTH * 100;
+                const ryPct = (RING.ry + 26) / V_HEIGHT * 100;
+                const cxPct = RING.cx / V_WIDTH * 100;
+                const cyPct = RING.cy / V_HEIGHT * 100;
+                const x = cxPct + rxPct * Math.cos(angle);
+                const y = cyPct + ryPct * Math.sin(angle);
+                const l = document.createElement('i');
+                l.style.left = x + '%';
+                l.style.top = y + '%';
+                lightFrameEl.appendChild(l);
+                lightEls.push(l);
+            }
+        }
+        buildLightFrame();
+
+        let lightPos = 0;
+        let lightBeatMs = 220;
+        let lastLightTick = 0;
+        function updateChaseLights(ts){
+            if (ts - lastLightTick < lightBeatMs) return;
+            lastLightTick = ts;
+            const feverOn = slotState === "FEVER";
+            lightEls.forEach((el,i)=>{
+                const lit = (i - lightPos + LIGHT_COUNT) % LIGHT_COUNT < 6;
+                el.classList.toggle('on', lit && !feverOn);
+                el.classList.toggle('fever', lit && feverOn);
+            });
+            lightPos = (lightPos + 1) % LIGHT_COUNT;
+        }
+
+        // ===================== 彈珠道：環繞中央黑框外圍的釘子路徑（依參考機台造型） =====================
+        function initNadesicoPins() {
+            pins = [];
+            const { cx, cy, rx, ry } = RING;
+
+            // 外環：緊貼黑框外緣的主要引導釘，360度環繞（對應圖片中圓形機殼周圍的釘道）
+            const outerCount = 14;
+            for (let i = 0; i < outerCount; i++) {
+                const angle = (i / outerCount) * Math.PI * 2 - Math.PI/2;
+                const wobble = (i % 2 === 0) ? 1 : 0.94;
+                pins.push({
+                    x: cx + Math.cos(angle) * rx * wobble,
+                    y: cy + Math.sin(angle) * ry * wobble,
+                    r: 4, type: 'normal'
+                });
+            }
+
+            // 內環：外環內側再貼一圈較密的釘子，形成雙層之字彈珠道，強化環繞感
+            const innerCount = 20;
+            for (let i = 0; i < innerCount; i++) {
+                const angle = (i / innerCount) * Math.PI * 2 - Math.PI/2 + (Math.PI / innerCount);
+                pins.push({
+                    x: cx + Math.cos(angle) * (rx - 30),
+                    y: cy + Math.sin(angle) * (ry - 30),
+                    r: 4, type: 'normal'
+                });
+            }
+
+            // 上方風車區：balls 從右側發射道越過頂端後，先經過這排落入環狀道
+            for (let i = 0; i < 7; i++) {
+                pins.push({ x: 150 + i * 50, y: 95 + Math.sin(i * 0.9) * 14, r: 4, type: 'normal' });
+            }
+
+            // 下方漏斗與紅色反彈點（bumper），把彈珠導向始動口與大賞口——加大反彈力道的強化點
+            pins.push({ x: 120, y: 500, r: 15, type: 'bumper' });
+            pins.push({ x: 480, y: 500, r: 15, type: 'bumper' });
+            pins.push({ x: 300, y: 460, r: 13, type: 'bumper' });
+            pins.push({ x: 170, y: 560, r: 12, type: 'bumper' });
+            pins.push({ x: 430, y: 560, r: 12, type: 'bumper' });
+            pins.push({ x: 90, y: 350, r: 12, type: 'bumper' });
+            pins.push({ x: 510, y: 350, r: 12, type: 'bumper' });
+            pins.push({ x: 220, y: 610, r: 5, type: 'normal' });
+            pins.push({ x: 380, y: 610, r: 5, type: 'normal' });
+            pins.push({ x: 260, y: 660, r: 5, type: 'normal' });
+            pins.push({ x: 340, y: 660, r: 5, type: 'normal' });
+        }
+
+        function handleKnobRotation(e) {
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const rect = dialOuter.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            let deltaX = clientX - centerX;
+            let pct = Math.max(0, Math.min(100, (deltaX + 34) / 68 * 100));
+
+            shootPower = Math.round(pct);
+            dialKnob.style.transform = `rotate(${shootPower * 1.8}deg)`;
+            powerDisplay.textContent = shootPower > 0 ? `發射:${shootPower}%` : "發射 OFF";
+        }
+
+        dialOuter.addEventListener('mousedown', () => isRotating = true);
+        window.addEventListener('mousemove', (e) => { if (isRotating) handleKnobRotation(e); });
+        window.addEventListener('mouseup', () => isRotating = false);
+        dialOuter.addEventListener('touchstart', () => isRotating = true, {passive:true});
+        window.addEventListener('touchmove', (e) => { if (isRotating) handleKnobRotation(e); }, {passive:false});
+        window.addEventListener('touchend', () => isRotating = false);
+
+        refillBtn.addEventListener('click', () => { myBalls += 100; playSfx(880, 0.1); updateUI(); });
+
+        function updateUI() {
+            ballDisplay.textContent = `持玉: ${myBalls} 發`;
+            jackpotDisplay.textContent = `大賞: ${jackpots} 回`;
+        }
+
+        function processAutoShoot() {
+            if (shootPower > 5 && myBalls > 0) {
+                shootTimer++;
+                if (shootTimer >= 11) {
+                    shootTimer = 0;
+                    myBalls--;
+                    updateUI();
+                    playSfx(150, 0.03, 'triangle');
+                    balls.push({
+                        x: 578, y: 730,
+                        vx: -0.3 - (shootPower * 0.035),
+                        vy: -15.5 - (shootPower * 0.165),
+                        r: 5.5, gravity: 0.34, bounce: 0.42
+                    });
+                }
+            }
+        }
+
+        function updateNadesicoScreen() {
+            if (slotState === "IDLE" && retainBalls > 0) {
+                retainBalls--;
+                slotState = "SPINNING";
+                slotTimer = 80;
+                dialogueSpeaker = "【由利加】";
+                dialogueText = "撫子號，發進！（心）";
+                playSfx(660, 0.08);
+            }
+
+            if (slotState === "SPINNING") {
+                slotTimer--;
+                if (slotTimer % 4 === 0) {
+                    slotNumbers = [Math.floor(Math.random()*9)+1, Math.floor(Math.random()*9)+1, Math.floor(Math.random()*9)+1];
+                }
+                if (slotTimer <= 0) {
+                    if (Math.random() < 0.35) {
+                        slotState = "BATTLE";
+                        battleTimer = 140;
+                        playerRoll = Math.floor(Math.random() * 85) + 15;
+                        enemyRoll = Math.floor(Math.random() * 80) + 15;
+                        playerRevealed = false;
+                        enemyRevealed = false;
+                        dialogueSpeaker = "【琉璃】";
+                        dialogueText = "警告，木星蜥蜴來襲！";
+                    } else {
+                        slotState = "IDLE";
+                        slotNumbers = [7, 5, 2];
+                        dialogueSpeaker = "【琉璃】";
+                        dialogueText = "落選。真是笨蛋...";
+                    }
+                }
+            }
+
+            if (slotState === "BATTLE") {
+                battleTimer--;
+
+                // 揭曉前的滾動數字動畫（每幾格更新一次，模擬骰子/計數器高速跳動）
+                if (!playerRevealed && battleTimer % 3 === 0) battleRollDisplayP = Math.floor(Math.random() * 85) + 15;
+                if (!enemyRevealed && battleTimer % 3 === 0) battleRollDisplayE = Math.floor(Math.random() * 80) + 15;
+
+                if (battleTimer % 15 === 0 && battleTimer > 40) playSfx(800, 0.06, 'sawtooth');
+
+                if (battleTimer === 80) {
+                    playerRevealed = true;
+                    battleRollDisplayP = playerRoll;
+                    dialogueSpeaker = "【凱】";
+                    dialogueText = "熱血飛拳！點數是 " + playerRoll;
+                    playSfx(400, 0.3, 'sawtooth');
+                }
+                if (battleTimer === 40) {
+                    enemyRevealed = true;
+                    battleRollDisplayE = enemyRoll;
+                    dialogueSpeaker = "【敵機】";
+                    dialogueText = "防禦判定點數： " + enemyRoll;
+                }
+
+                if (battleTimer <= 0) {
+                    battleWon = playerRoll >= enemyRoll;
+                    slotState = "BATTLE_RESULT";
+                    battleResultTimer = 55;
+                    dialogueSpeaker = "【系統】";
+                    dialogueText = battleWon ? "判定勝利！確認中..." : "判定落敗！確認中...";
+                    playSfx(battleWon ? 1200 : 220, 0.4, battleWon ? 'square' : 'sawtooth');
+                }
+            }
+
+            if (slotState === "BATTLE_RESULT") {
+                battleResultTimer--;
+                if (battleResultTimer <= 0) {
+                    if (battleWon) {
+                        slotState = "FEVER";
+                        slotNumbers = [7, 7, 7];
+                        jackpots++;
+                        updateUI();
+                        dialogueSpeaker = "【由利加】";
+                        dialogueText = "重力波砲！大賞開啟！";
+                        if (!jackpotPlaying) startJackpotLoop(true); // FEVER 自動切換 JACKPOT LOOP 慶祝配樂
+                    } else {
+                        slotState = "IDLE";
+                        dialogueSpeaker = "【明人】";
+                        dialogueText = "可惡...我只是廚師啊！";
+                        playSfx(200, 0.3, 'sawtooth');
+                    }
+                }
+            }
+
+            if (slotState === "FEVER") {
+                feverGate.open = true;
+                if (feverGate.wingAngle < 45) feverGate.wingAngle += 3;
+                if (Math.random() < 0.2) playSfx(1200, 0.05);
+
+                if (Math.random() < 0.002) {
+                    slotState = "IDLE";
+                    feverGate.open = false;
+                    dialogueSpeaker = "【系統】";
+                    dialogueText = "大賞結束。請再試一次！";
+                    if (jackpotAutoTriggered) stopJackpotLoop(); // FEVER 結束，若是自動觸發則停止
+                }
+            } else {
+                if (feverGate.wingAngle > 0) feverGate.wingAngle -= 3;
+                feverGate.open = false;
+            }
+        }
+
+        function drawBattleCards(){
+            const inResult = slotState === "BATTLE_RESULT";
+            const cardY = SCREEN.y + 15;
+            const cardH = 130;
+            const cardW = 140;
+            const leftX = SCREEN.x + 15;
+            const rightX = SCREEN.x + SCREEN.w - 15 - cardW;
+            const rolling = Math.floor(Date.now()/90) % 2 === 0;
+
+            function card(x, label, value, revealed, isWinner, isLoser){
+                ctx.save();
+                ctx.fillStyle = "#020108";
+                ctx.fillRect(x, cardY, cardW, cardH);
+                let borderColor = "#00ffcc";
+                if (inResult && isWinner) borderColor = "#ffcf4d";
+                else if (inResult && isLoser) borderColor = "#555";
+                else if (!revealed) borderColor = rolling ? "#ff00ff" : "#00ffcc";
+                ctx.lineWidth = 4;
+                ctx.strokeStyle = borderColor;
+                ctx.strokeRect(x, cardY, cardW, cardH);
+
+                ctx.textAlign = "center";
+                ctx.fillStyle = "#ffcc00";
+                ctx.font = "bold 20px sans-serif";
+                ctx.fillText(label, x + cardW/2, cardY + 26);
+
+                ctx.font = "bold 46px monospace";
+                ctx.fillStyle = revealed ? "#ffffff" : "#8b90a0";
+                ctx.fillText(String(value), x + cardW/2, cardY + 84);
+
+                if (inResult && isWinner) {
+                    ctx.save();
+                    ctx.translate(x + cardW/2, cardY + cardH/2);
+                    ctx.rotate(-0.25);
+                    ctx.strokeStyle = "#ffcf4d"; ctx.lineWidth = 3;
+                    ctx.strokeRect(-45, -16, 90, 32);
+                    ctx.fillStyle = "#ffcf4d";
+                    ctx.font = "bold 22px sans-serif";
+                    ctx.fillText("WIN", 0, 8);
+                    ctx.restore();
+                } else if (inResult && isLoser) {
+                    ctx.save();
+                    ctx.globalAlpha = 0.75;
+                    ctx.translate(x + cardW/2, cardY + cardH/2);
+                    ctx.rotate(-0.25);
+                    ctx.strokeStyle = "#888"; ctx.lineWidth = 3;
+                    ctx.strokeRect(-50, -16, 100, 32);
+                    ctx.fillStyle = "#aaa";
+                    ctx.font = "bold 20px sans-serif";
+                    ctx.fillText("LOSE", 0, 8);
+                    ctx.restore();
+                }
+                ctx.restore();
+            }
+
+            const pWin = inResult && battleWon;
+            const eWin = inResult && !battleWon;
+            card(leftX, "我方", battleRollDisplayP, playerRevealed || inResult, pWin, eWin);
+            card(rightX, "敵方", battleRollDisplayE, enemyRevealed || inResult, eWin, pWin);
+
+            // 中央 VS 字樣，脈動大小
+            ctx.save();
+            const pulse = 1 + Math.sin(Date.now()/120) * 0.08;
+            ctx.translate(SCREEN.x + SCREEN.w/2, cardY + cardH/2);
+            ctx.scale(pulse, pulse);
+            ctx.textAlign = "center";
+            ctx.font = "bold 30px sans-serif";
+            ctx.fillStyle = "#ff3d81";
+            ctx.fillText("VS", 0, 10);
+            ctx.restore();
+        }
+
+        function drawRingGuide(){
+            // 於中央黑框外緣繪製環狀導引軌跡線（視覺上呼應參考圖片的圓形機殼邊界）
+            ctx.save();
+            ctx.strokeStyle = slotState === "FEVER" ? "rgba(255,61,129,0.5)" : "rgba(255,207,77,0.35)";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.ellipse(RING.cx, RING.cy, RING.rx + 12, RING.ry + 12, 0, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function gameLoop(ts) {
+            processAutoShoot();
+            updateNadesicoScreen();
+            updateChaseLights(ts || 0);
+            updateChordUI();
+            ctx.clearRect(0, 0, V_WIDTH, V_HEIGHT);
+            drawBgLayer();
+
+            // 邊框
+            ctx.fillStyle = "#5a0e7e";
+            ctx.fillRect(0, 0, 15, 800); ctx.fillRect(585, 0, 15, 800);
+
+            ctx.strokeStyle = (slotState === "FEVER" && Math.floor(Date.now()/100)%2===0) ? "#ffff00" : "#ff00ff";
+            ctx.lineWidth = 4; ctx.beginPath();
+            ctx.moveTo(25, 800); ctx.lineTo(25, 130);
+            ctx.arcTo(25, 20, 300, 20, 110); ctx.arcTo(575, 20, 575, 130, 110);
+            ctx.lineTo(575, 800); ctx.stroke();
+
+            drawRingGuide();
+
+            // 液晶螢幕（置中於環狀彈珠道內側）
+            ctx.fillStyle = "#020108"; ctx.strokeStyle = slotState === "FEVER" ? "#ff0055" : "#00ffcc";
+            ctx.lineWidth = 4;
+            ctx.fillRect(SCREEN.x, SCREEN.y, SCREEN.w, SCREEN.h);
+            ctx.strokeRect(SCREEN.x, SCREEN.y, SCREEN.w, SCREEN.h);
+
+            if (slotState === "BATTLE" || slotState === "BATTLE_RESULT") {
+                drawBattleCards();
+            } else {
+                ctx.textAlign = "center";
+                ctx.font = "bold 80px sans-serif";
+                ctx.fillStyle = slotState === "FEVER" ? "#ff00ff" : "#00ffcc";
+                ctx.fillText(`${slotNumbers[0]} ${slotNumbers[1]} ${slotNumbers[2]}`, 300, 260);
+            }
+
+            for (let b = 0; b < 4; b++) {
+                ctx.fillStyle = b < retainBalls ? "#00ffcc" : "#222";
+                ctx.beginPath(); ctx.arc(250 + b * 33, 285, 7, 0, Math.PI*2); ctx.fill();
+            }
+
+            ctx.fillStyle = "rgba(0,0,0,0.94)";
+            ctx.fillRect(SCREEN.x + 5, 305, SCREEN.w - 10, 115);
+            ctx.strokeStyle = "#00ffcc";
+            ctx.lineWidth = 2.5;
+            ctx.strokeRect(SCREEN.x + 5, 305, SCREEN.w - 10, 115);
+
+            ctx.fillStyle = "#ffcc00";
+            ctx.font = "bold 32px sans-serif";
+            ctx.textAlign = "left";
+            ctx.fillText(dialogueSpeaker, SCREEN.x + 20, 350);
+
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "bold 24px sans-serif";
+            let line1 = dialogueText.slice(0, 12);
+            let line2 = dialogueText.slice(12);
+            ctx.fillText(line1, SCREEN.x + 20, 388);
+            if (line2) ctx.fillText(line2, SCREEN.x + 20, 415);
+
+            // 始動口
+            ctx.fillStyle = "#ff00ff"; ctx.beginPath(); ctx.arc(chanceGate.x, chanceGate.y, chanceGate.r, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = "#fff"; ctx.font = "bold 11px Arial"; ctx.textAlign = "center"; ctx.fillText("CHANCE", chanceGate.x, chanceGate.y+4);
+
+            // 入賞翼板
+            ctx.save();
+            ctx.translate(300, feverGate.y + 12);
+            ctx.strokeStyle = "#ff00ff"; ctx.lineWidth = 7;
+            ctx.beginPath(); ctx.moveTo(-feverGate.w/2, 0);
+            let leftRad = (180 - feverGate.wingAngle) * Math.PI / 180;
+            ctx.lineTo(-feverGate.w/2 + Math.cos(leftRad) * 45, Math.sin(leftRad) * 45); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(feverGate.w/2, 0);
+            let rightRad = feverGate.wingAngle * Math.PI / 180;
+            ctx.lineTo(feverGate.w/2 + Math.cos(rightRad) * 45, -Math.sin(rightRad) * 45); ctx.stroke();
+            ctx.restore();
+
+            // 大賞 V-GATE
+            ctx.fillStyle = feverGate.open ? "#ff0055" : "#200330";
+            ctx.fillRect(feverGate.x - feverGate.w/2, feverGate.y, feverGate.w, feverGate.h);
+            ctx.strokeStyle = "#00ffcc"; ctx.strokeRect(feverGate.x - feverGate.w/2, feverGate.y, feverGate.w, feverGate.h);
+            ctx.fillStyle = "#fff"; ctx.font = "bold 18px Arial";
+            ctx.fillText(feverGate.open ? "◀◀ 大入賞口 OPEN ▶▶" : "【 V-GATE 大賞口 】", feverGate.x, feverGate.y+19);
+
+            // 釘子（環繞中央黑框的彈珠道）
+            pins.forEach(p => {
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+                ctx.fillStyle = p.type === 'bumper' ? '#ff2b2b' : '#a377cc'; ctx.fill();
+                if (p.type === 'bumper') {
+                    ctx.save();
+                    ctx.shadowBlur = 8; ctx.shadowColor = '#ff2b2b';
+                    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+                    ctx.restore();
+                }
+            });
+
+            // 鋼珠物理
+            for (let i = balls.length - 1; i >= 0; i--) {
+                let b = balls[i];
+                b.vy += b.gravity; b.x += b.vx; b.y += b.vy;
+
+                if (b.x < 25 + b.r) { b.x = 25 + b.r; b.vx *= -b.bounce; }
+                if (b.x > 575 - b.r && b.y < 220) { b.x = 575 - b.r; b.vx *= -b.bounce; }
+                if (b.x > 545 - b.r && b.y >= 220) { if(b.vx > 0) { b.x = 545 - b.r; b.vx *= -b.bounce; } }
+                if (b.y < 25 + b.r) { b.y = 25 + b.r; b.vy *= -b.bounce; }
+
+                if (feverGate.open && feverGate.wingAngle > 10) {
+                    let leftWingX = feverGate.x - feverGate.w/2 - 25;
+                    if (b.x < feverGate.x - feverGate.w/2 && b.x > leftWingX && b.y > feverGate.y - 30 && b.y < feverGate.y + 10) { b.vx = 4.5; b.vy = 2; }
+                    let rightWingX = feverGate.x + feverGate.w/2 + 25;
+                    if (b.x > feverGate.x + feverGate.w/2 && b.x < rightWingX && b.y > feverGate.y - 30 && b.y < feverGate.y + 10) { b.vx = -4.5; b.vy = 2; }
+                } else {
+                    // 導棒關閉時：原本只是裝飾線條，現在給予實際碰撞——像真實電動役物一樣，
+                    // 關閉的兩側導棒會把落下的珠子往外彈開，而不是讓珠子直接穿過去
+                    const wingY = feverGate.y + 12;
+                    const leftLo = feverGate.x - feverGate.w/2 - 45, leftHi = feverGate.x - feverGate.w/2;
+                    const rightLo = feverGate.x + feverGate.w/2, rightHi = feverGate.x + feverGate.w/2 + 45;
+                    if (b.y > wingY - 8 - b.r && b.y < wingY + 8 + b.r) {
+                        if (b.x > leftLo - b.r && b.x < leftHi + b.r) {
+                            b.y = wingY - 8 - b.r;
+                            b.vy = -Math.abs(b.vy) * 0.5 - 1.2;
+                            b.vx -= 0.8;
+                            if (Math.random() < 0.15) playPinHitSfx(1400, 0.02);
+                        } else if (b.x > rightLo - b.r && b.x < rightHi + b.r) {
+                            b.y = wingY - 8 - b.r;
+                            b.vy = -Math.abs(b.vy) * 0.5 - 1.2;
+                            b.vx += 0.8;
+                            if (Math.random() < 0.15) playPinHitSfx(1400, 0.02);
+                        }
+                    }
+                }
+
+                pins.forEach(p => {
+                    let dx = b.x - p.x; let dy = b.y - p.y; let dist = Math.sqrt(dx*dx + dy*dy);
+                    if (dist < b.r + p.r) {
+                        let angle = Math.atan2(dy, dx);
+                        b.x = p.x + Math.cos(angle) * (b.r + p.r); b.y = p.y + Math.sin(angle) * (b.r + p.r);
+                        let spd = Math.sqrt(b.vx*b.vx + b.vy*b.vy);
+                        let f = p.type === 'bumper' ? 1.35 : 0.58;
+                        b.vx = Math.cos(angle) * Math.max(2, spd) * f; b.vy = Math.sin(angle) * Math.max(2, spd) * f;
+                        if(Math.random() < 0.15) playPinHitSfx(1800, 0.02);
+                    }
+                });
+
+                let cDx = b.x - chanceGate.x; let cDy = b.y - chanceGate.y;
+                if (Math.sqrt(cDx*cDx + cDy*cDy) < b.r + chanceGate.r) {
+                    balls.splice(i, 1);
+                    if (retainBalls < 4) retainBalls++;
+                    myBalls += 4; updateUI(); playSfx(988, 0.1); continue;
+                }
+
+                if (feverGate.open && b.x > feverGate.x - feverGate.w/2 && b.x < feverGate.x + feverGate.w/2 && b.y > feverGate.y - 10 && b.y < feverGate.y + feverGate.h) {
+                    balls.splice(i, 1);
+                    myBalls += 15; updateUI(); continue;
+                }
+
+                if (b.y > 810) { balls.splice(i, 1); continue; }
+
+                ctx.save();
+                ctx.fillStyle = '#fff'; ctx.shadowBlur = 4; ctx.shadowColor = '#00ffcc';
+                ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
+                ctx.restore();
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+        initNadesicoPins();
+        updateUI();
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>
